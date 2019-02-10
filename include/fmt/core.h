@@ -1317,7 +1317,7 @@ struct wformat_args : basic_format_args<wformat_context> {
       : basic_format_args<wformat_context>(std::forward<Args>(arg)...) {}
 };
 
-#define FMT_ENABLE_IF_T(B, T) typename std::enable_if<B, T>::type
+#define FMT_ENABLE_IF_T(...) typename std::enable_if<__VA_ARGS__>::type
 
 #ifndef FMT_USE_ALIAS_TEMPLATES
 #  define FMT_USE_ALIAS_TEMPLATES FMT_HAS_FEATURE(cxx_alias_templates)
@@ -1367,11 +1367,11 @@ template <typename T, typename Char> struct named_arg : named_arg_base<Char> {
 };
 
 template <typename... Args, typename S>
-inline typename std::enable_if<!is_compile_string<S>::value>::type
-check_format_string(const S&) {}
+inline FMT_ENABLE_IF_T(!is_compile_string<S>::value)
+    check_format_string(const S&) {}
 template <typename... Args, typename S>
-typename std::enable_if<is_compile_string<S>::value>::type check_format_string(
-    S);
+FMT_ENABLE_IF_T(is_compile_string<S>::value)
+check_format_string(S);
 
 template <typename S, typename... Args>
 struct checked_args
@@ -1430,8 +1430,8 @@ struct is_contiguous<internal::basic_buffer<Char>> : std::true_type {};
 
 /** Formats a string and writes the output to ``out``. */
 template <typename Container, typename S>
-typename std::enable_if<is_contiguous<Container>::value,
-                        std::back_insert_iterator<Container>>::type
+FMT_ENABLE_IF_T(is_contiguous<Container>::value,
+                std::back_insert_iterator<Container>)
 vformat_to(std::back_insert_iterator<Container> out, const S& format_str,
            basic_format_args<typename buffer_context<FMT_CHAR(S)>::type> args) {
   internal::container_buffer<Container> buf(internal::get_container(out));
@@ -1440,13 +1440,13 @@ vformat_to(std::back_insert_iterator<Container> out, const S& format_str,
 }
 
 template <typename Container, typename S, typename... Args>
-inline typename std::enable_if<is_contiguous<Container>::value &&
-                                   internal::is_string<S>::value,
-                               std::back_insert_iterator<Container>>::type
-format_to(std::back_insert_iterator<Container> out, const S& format_str,
-          const Args&... args) {
-  internal::checked_args<S, Args...> ca(format_str, args...);
-  return vformat_to(out, to_string_view(format_str), *ca);
+inline FMT_ENABLE_IF_T(
+    is_contiguous<Container>::value&& internal::is_string<S>::value,
+    std::back_insert_iterator<Container>)
+    format_to(std::back_insert_iterator<Container> out, const S& format_str,
+              const Args&... args) {
+  return vformat_to(out, to_string_view(format_str),
+                    {internal::checked_args<S, Args...>(format_str, args...)});
 }
 
 template <typename S, typename Char = FMT_CHAR(S)>
@@ -1471,7 +1471,7 @@ inline std::basic_string<FMT_CHAR(S)> format(const S& format_str,
                                              const Args&... args) {
   return internal::vformat(
       to_string_view(format_str),
-      *internal::checked_args<S, Args...>(format_str, args...));
+      {internal::checked_args<S, Args...>(format_str, args...)});
 }
 
 FMT_API void vprint(std::FILE* f, string_view format_str, format_args args);
